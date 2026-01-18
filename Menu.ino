@@ -28,7 +28,7 @@ Adafruit_SSD1306 display(OLED_RESET);
 #define MAX 300 //2800
 
 // ----- Меню -----
-String menuItems[] = {"Boot Time", "Up 2",  "Up 1", "Down 1",  "Down 2", "Info", "Exit"};
+String menuItems[] = {"Boot Time", "Up 2",  "Up 1", "Down 1",  "Down 2", "Info", "Exit", "Wait Time"};
 int menuSize = sizeof(menuItems) / sizeof(menuItems[0]);
 int counter, menu_select = 0;
 int menu_start = 0, menu_end = 3;
@@ -44,6 +44,11 @@ const char* confFile = "def_t.txt";                         // config file
 bool Timer_Blink = false;
 uint16_t Timer1 = 0;
 uint16_t Timer1_nom = 1;
+uint16_t Timer_s1 = 0;
+uint16_t Timer_s2 = 0;
+uint16_t Timer_s3 = 0;
+uint16_t Timer_s4 = 0;
+uint16_t Timer_snom = 1;
 
 IRAM_ATTR void isrA() {
     (digitalRead(EN_CCW_PIN) == 1) ? counter--: counter++;
@@ -59,6 +64,18 @@ void ICACHE_RAM_ATTR onTimerISR(){
     if (Timer1 < Timer1_nom * 60)
     {
         Timer1++;
+    }
+    if (Timer_s1 < Timer_snom) {
+        Timer_s1++;
+    }
+    if (Timer_s2 < Timer_snom) {
+        Timer_s2++;
+    }
+        if (Timer_s3 < Timer_snom) {
+        Timer_s3++;
+    }
+    if (Timer_s4 < Timer_snom) {
+        Timer_s4++;
     }
 }
 
@@ -123,12 +140,14 @@ void setup() {
         Param3 = (f.read() << 8) + f.read();
         Param4 = (f.read() << 8) + f.read();
         Timer1_nom = (f.read() << 8) + f.read();
+        Timer_snom = (f.read() << 8) + f.read();
         f.close();
         Param1 < MIN ? Param1 = MIN : Param1 > MAX ? Param1 = MAX : Param1 = Param1;
         Param2 < MIN ? Param2 = MIN : Param2 > MAX ? Param2 = MAX : Param2 = Param2;
         Param3 < MIN ? Param3 = MIN : Param3 > MAX ? Param3 = MAX : Param3 = Param3;
         Param4 < MIN ? Param4 = MIN : Param4 > MAX ? Param4 = MAX : Param4 = Param4;
         Timer1_nom < 0 ? Timer1_nom = 0 : Timer1_nom > 15 ? Timer1_nom = 15 : Timer1_nom = Timer1_nom;
+        Timer_snom < 0 ? Timer_snom = 0 : Timer_snom > 1200 ? Timer_snom = 1200 : Timer_snom = Timer_snom;
     }
     else
     {
@@ -170,17 +189,39 @@ void loop()
 
     if (Timer1 >= Timer1_nom * 60) {
         if ((port >= 55) and (port <= 655)) {
-            if (Param1 <= port) {digitalWrite(R1_PIN, HIGH);} else {digitalWrite(R1_PIN, LOW);}
-            if (Param2 <= port) {digitalWrite(R2_PIN, HIGH);} else {digitalWrite(R2_PIN, LOW);}
-            if (Param3 >= port) {digitalWrite(R3_PIN, HIGH);} else {digitalWrite(R3_PIN, LOW);}
-            if (Param4 >= port) {digitalWrite(R4_PIN, HIGH);} else {digitalWrite(R4_PIN, LOW);}
+            if (Param1 <= port) {;} else {Timer_s1 = 0;}
+            if (Param2 <= port) {;} else {Timer_s2 = 0;}
+            if (Param3 >= port) {;} else {Timer_s3 = 0;}
+            if (Param4 >= port) {;} else {Timer_s4 = 0;}
+            if (Timer_snom > 0)
+            {
+              if (Timer_s1 >= Timer_snom) {digitalWrite(R1_PIN, HIGH);} else {digitalWrite(R1_PIN, LOW);}
+              if (Timer_s2 >= Timer_snom) {digitalWrite(R2_PIN, HIGH);} else {digitalWrite(R2_PIN, LOW);}
+              if (Timer_s3 >= Timer_snom) {digitalWrite(R3_PIN, HIGH);} else {digitalWrite(R3_PIN, LOW);}
+              if (Timer_s4 >= Timer_snom) {digitalWrite(R4_PIN, HIGH);} else {digitalWrite(R4_PIN, LOW);}
+            }
+            else
+            {
+              if (Param1 <= port) {digitalWrite(R1_PIN, HIGH);;} else {digitalWrite(R1_PIN, LOW);}
+              if (Param2 <= port) {digitalWrite(R2_PIN, HIGH);;} else {digitalWrite(R2_PIN, LOW);}
+              if (Param3 >= port) {digitalWrite(R3_PIN, HIGH);;} else {digitalWrite(R3_PIN, LOW);}
+              if (Param4 >= port) {digitalWrite(R4_PIN, HIGH);;} else {digitalWrite(R4_PIN, LOW);}
+            }
         } else {
+            Timer_s1 = 0;
+            Timer_s2 = 0;
+            Timer_s3 = 0;
+            Timer_s4 = 0;
             digitalWrite(R1_PIN, LOW);
             digitalWrite(R2_PIN, LOW);
             digitalWrite(R3_PIN, LOW);
             digitalWrite(R4_PIN, LOW);
         }
     } else {
+        Timer_s1 = 0;
+        Timer_s2 = 0;
+        Timer_s3 = 0;
+        Timer_s4 = 0;
         digitalWrite(R1_PIN, LOW);
         digitalWrite(R2_PIN, LOW);
         digitalWrite(R3_PIN, LOW);
@@ -289,6 +330,20 @@ void Encoder () {
         menu_select = temp;
         counter = menu_select;
     }
+    if (submenu == 7)
+    {
+        int temp = menu_select;
+        if (counter - menu_select > delta_CW) {
+                if (Timer_snom < 1200) Timer_snom = Timer_snom + 10;
+                menu_select++;
+            }
+        if (counter - menu_select < -delta_CW) {
+                if (Timer_snom > 0) Timer_snom = Timer_snom - 10;
+                menu_select--;
+            }
+        menu_select = temp;
+        counter = menu_select;
+    }
 }
 
 void Display() {
@@ -309,7 +364,7 @@ void Display() {
         switch (submenu) {
             case 0:
                 if (Param1 <=  port) {
-                    display.fillRect(0, 0, 64, 8, WHITE);
+                    display.fillRect(0, 0, 64, 7, WHITE);
                     display.setTextColor(BLACK);
                 } else {
                     display.setTextColor(WHITE);
@@ -318,7 +373,7 @@ void Display() {
                 display.printf("Up2:  %.2f", double(Param1)/100);
 
                 if (Param2 <=  port) {
-                    display.fillRect(0, 9, 64, 8, WHITE);
+                    display.fillRect(0, 9, 64, 7, WHITE);
                     display.setTextColor(BLACK);
                 } else {
                     display.setTextColor(WHITE);
@@ -327,7 +382,7 @@ void Display() {
                 display.printf("Up1:  %.2f", double(Param2)/100);
 
                 if (Param3 >=  port) {
-                    display.fillRect(0, 18, 64, 8, WHITE);
+                    display.fillRect(0, 18, 64, 7, WHITE);
                     display.setTextColor(BLACK);
                 } else {
                     display.setTextColor(WHITE);
@@ -336,13 +391,21 @@ void Display() {
                 display.printf("Do1:  %.2f", double(Param3)/100);
 
                 if (Param4 >=  port) {
-                    display.fillRect(0, 27, 64, 8, WHITE);
+                    display.fillRect(0, 27, 64, 7, WHITE);
                     display.setTextColor(BLACK);
                 } else {
                     display.setTextColor(WHITE);
                 }
                 display.setCursor(0, 27);
                 display.printf("Do2:  %.2f", double(Param4)/100);
+
+
+                if (Timer_Blink) {
+                    display.drawLine(0, 7, int(float (64) / (Timer_snom) * Timer_s1), 7, WHITE);
+                    display.drawLine(0, 16, int(float (64) / (Timer_snom) * Timer_s2), 16, WHITE);
+                    display.drawLine(0, 25, int(float (64) / (Timer_snom) * Timer_s3), 25, WHITE);
+                    display.drawLine(0, 34, int(float (64) / (Timer_snom) * Timer_s4), 34, WHITE);
+                }
 
                 display.setTextColor(WHITE);
                 display.setCursor(0, 38);
@@ -391,10 +454,10 @@ void Display() {
                 display.print(menuItems[submenu]);
                 display.setTextColor(WHITE);
                 display.setCursor(5, 12 + 2);
-                display.print("v: 1.0.7");
+                display.print("v: 1.0.8");
                 display.setCursor(5, 12 * 2 + 2);
-                display.print("08/01/26");
-                break;                
+                display.print("18/01/26");
+                break;
             case 6:
                 display.setTextColor(BLACK);
                 display.fillRect(0, 0, 64, 12, WHITE);
@@ -403,7 +466,16 @@ void Display() {
                 display.setTextColor(WHITE);
                 display.setCursor(5, 12 + 2);
                 display.printf("min: %d", Timer1_nom);
-                break;                
+                break;
+            case 7:
+                display.setTextColor(BLACK);
+                display.fillRect(0, 0, 64, 12, WHITE);
+                display.setCursor(5, 2);
+                display.print("Wait Time");
+                display.setTextColor(WHITE);
+                display.setCursor(5, 12 + 2);
+                display.printf("sec: %d", Timer_snom);
+                break;            
 
         }
     }
@@ -470,6 +542,10 @@ void Encoder_button() {
                         submenu = 0;
                         menu = false;
                         break;
+                    case 7:
+                        submenu = 7;
+                        menu = false;
+                        break;
                 }
                 break;
             case 1:
@@ -501,6 +577,11 @@ void Encoder_button() {
                 submenu = 0;
                 menu = true;
                 break;
+            case 7:
+                ConfigFileUpdate();
+                submenu = 0;
+                menu = true;
+                break;
         }
     }
     while (!digitalRead(EN_SW_PIN)) ;
@@ -518,5 +599,7 @@ void ConfigFileUpdate() {
     f.write(Param4 & 0xFF);
     f.write(Timer1_nom >> 8);
     f.write(Timer1_nom & 0xFF);
+    f.write(Timer_snom >> 8);
+    f.write(Timer_snom & 0xFF);
     f.close();
 }
